@@ -1,0 +1,55 @@
+name: Sync to HuggingFace Dataset
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/**/*.json'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  sync-to-huggingface:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install datasets huggingface_hub pandas pyarrow
+      
+      - name: Convert Changed JSONs to Parquet (Optimized)
+        env:
+          HF_DATASET_REPO: deepmage121/eee_test
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "Detecting changed leaderboards..."
+          python scripts/convert_to_parquet.py
+        
+      - name: Upload Changed Parquets to HuggingFace
+        env:
+          HF_DATASET_REPO: deepmage121/eee_test
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "Uploading changed parquets..."
+          python scripts/upload_to_hf.py
+      
+      - name: Report status
+        if: success()
+        run: |
+          echo "Successfully synced to HuggingFace dataset"
+          echo "View at: https://huggingface.co/datasets/deepmage121/eee_test"
+          if [ -f parquet_output/changed_leaderboards.json ]; then
+            echo ""
+            echo "Changes processed:"
+            cat parquet_output/changed_leaderboards.json
+          fi
+
