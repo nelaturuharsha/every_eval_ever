@@ -14,7 +14,7 @@ Usage:
     python upload_to_hf.py --login
 """
 
-from huggingface_hub import login, HfFolder, HfApi
+from huggingface_hub import login, HfApi
 import pandas as pd
 from pathlib import Path
 import sys
@@ -33,17 +33,20 @@ def upload_changed_parquets():
     hf_token = os.environ.get("HF_TOKEN")
     if hf_token:
         print("Using HF_TOKEN from environment")
-        HfFolder.save_token(hf_token)
+        api = HfApi(token=hf_token)
     elif "--login" in sys.argv:
         print("Logging in to HuggingFace...")
         login()
+        api = HfApi()
     else:
-        if not HfFolder.get_token():
+        # Try to use cached token
+        api = HfApi()
+        try:
+            api.whoami()
+            print("Using existing HuggingFace token")
+        except Exception:
             print("ERROR: Not logged in. Run with --login flag or set HF_TOKEN environment variable")
             sys.exit(1)
-        print("Using existing HuggingFace token")
-    
-    api = HfApi()
     
     if not MANIFEST_PATH.exists():
         print(f"ERROR: No manifest found at {MANIFEST_PATH}")
