@@ -77,13 +77,88 @@ def upload_changed_parquets():
     for pf in files_to_upload:
         print(f"  - {pf.stem}")
     
+    # Generate/update dataset card with all leaderboards
+    try:
+        # Get all existing leaderboards from repo
+        existing_files = api.list_repo_files(repo_id=HF_DATASET_REPO, repo_type="dataset")
+        all_leaderboards = set()
+        for f in existing_files:
+            # Only match data/{name}.parquet format (not nested paths)
+            if f.startswith("data/") and f.endswith(".parquet") and f.count('/') == 1:
+                lb_name = f[5:-8]  # Remove "data/" and ".parquet"
+                all_leaderboards.add(lb_name)
+        
+        # Add new ones being uploaded
+        all_leaderboards.update(converted_leaderboards)
+        
+        # Generate README with config for all splits
+        # Each leaderboard is a separate split
+        splits_yaml = '\n'.join(
+            f"  - split: {lb}\n    path: data/{lb}.parquet"
+            for lb in sorted(all_leaderboards)
+        )
+        
+        readme_content = f"""---
+configs:
+- config_name: default
+  data_files:
+{splits_yaml}
+---
+
+# Every Eval Ever Dataset
+
+Evaluation results from various AI model leaderboards.
+
+## Usage
+
+```python
+from datasets import load_dataset
+
+# Load specific leaderboard
+dataset = load_dataset("{HF_DATASET_REPO}", split="hfopenllm_v2")
+
+# Load all
+dataset = load_dataset("{HF_DATASET_REPO}")
+```
+
+## Available Leaderboards (Splits)
+
+{chr(10).join(f'- `{lb}`' for lb in sorted(all_leaderboards))}
+
+## Schema
+
+- `model_name`, `model_id`, `model_developer`: Model information  
+- `evaluation_source_name`: Leaderboard name  
+- `evaluation_results`: JSON string with all metrics  
+- Additional metadata for reproducibility
+
+Auto-updated via GitHub Actions.
+"""
+        
+        readme_path = PARQUET_DIR / "README.md"
+        readme_path.write_text(readme_content)
+        
+        api.upload_file(
+            path_or_fileobj=str(readme_path),
+            path_in_repo="README.md",
+            repo_id=HF_DATASET_REPO,
+            repo_type="dataset",
+            commit_message="Update dataset card"
+        )
+        print(f"\n✓ Updated README.md with {len(all_leaderboards)} leaderboards")
+        
+    except Exception as e:
+        print(f"\nWarning: Failed to update README: {e}")
+    
     uploaded_count = 0
     error_count = 0
     
     for parquet_file in files_to_upload:
         leaderboard_name = parquet_file.stem
         
-        path_in_repo = f"data/{leaderboard_name}/data-00000-of-00001.parquet"
+        # Structure: data/{leaderboard}.parquet
+        # HuggingFace will auto-detect each as a split
+        path_in_repo = f"data/{leaderboard_name}.parquet"
         
         try:
             print(f"\nUploading: {leaderboard_name}")

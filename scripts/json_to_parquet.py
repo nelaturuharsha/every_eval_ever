@@ -91,23 +91,27 @@ def json_to_row(json_path: Path) -> dict:
     return row
 
 
-def add_to_parquet(json_input: str, parquet_file: str):
+def add_to_parquet(json_input: str | list[str], parquet_file: str):
     """
     Add JSON(s) to Parquet file.
     Creates new file if it doesn't exist, appends and deduplicates if it does.
     
     Args:
-        json_input: Path to single JSON file or folder containing JSONs
+        json_input: Path to single JSON file, folder containing JSONs, or list of JSON file paths
         parquet_file: Output Parquet file path
     """
-    input_path = Path(json_input)
-    
-    if input_path.is_file():
-        json_files = [input_path]
-    elif input_path.is_dir():
-        json_files = list(input_path.rglob("*.json"))
+    if isinstance(json_input, list):
+        # List of file paths provided
+        json_files = [Path(f) for f in json_input]
     else:
-        raise ValueError(f"Invalid input: {json_input}")
+        input_path = Path(json_input)
+        
+        if input_path.is_file():
+            json_files = [input_path]
+        elif input_path.is_dir():
+            json_files = list(input_path.rglob("*.json"))
+        else:
+            raise ValueError(f"Invalid input: {json_input}")
     
     print(f"Processing {len(json_files)} JSON file(s)...")
     
