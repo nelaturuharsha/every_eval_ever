@@ -42,7 +42,8 @@ def download_leaderboards(output_dir: Path, leaderboard_names: set[str]) -> set[
         
     except Exception as e:
         print(f"HF download failed: {e}")
-        sys.exit(1)
+        print("Treating all leaderboards as new (no existing data to download)")
+        return set()
 
 
 def detect_modified_leaderboards() -> set[str]:
